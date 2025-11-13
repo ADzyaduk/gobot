@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: massage-booking-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Mount database directory for persistence
+      - ./data:/data
+    environment:
+      - DB_PATH=/data/bot.db
+    # Optional: Add healthcheck
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/bot.db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+
