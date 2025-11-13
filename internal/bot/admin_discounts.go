@@ -4,6 +4,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -87,9 +88,10 @@ func getDiscountsManagementKeyboard(discounts []database.Discount) *tele.ReplyMa
 	// Add discount button
 	btnAdd := markup.Data("➕ Создать акцию", "admin_add_discount", "new")
 	btnBack := markup.Data("⬅️ Назад", "admin", "main")
+	btnMenu := markup.Data("🏠 Главное меню", "back_to_menu", "")
 
 	rows = append(rows, markup.Row(btnAdd))
-	rows = append(rows, markup.Row(btnBack))
+	rows = append(rows, markup.Row(btnBack, btnMenu))
 
 	markup.Inline(rows...)
 	return markup
@@ -111,7 +113,7 @@ func (b *Bot) handleAdminAddDiscountStart(ctx context.Context, c tele.Context) e
 	state.TempServiceData = make(map[string]interface{})
 
 	msg := "➕ <b>Создание акции</b>\n\n" +
-		"Шаг 1/4: Выберите услугу для акции:"
+		"Шаг 1/5: Выберите услугу для акции:"
 
 	return c.Edit(msg, &tele.SendOptions{
 		ParseMode:   tele.ModeHTML,
@@ -137,7 +139,9 @@ func getServicesForDiscountKeyboard(services []database.Service) *tele.ReplyMark
 	}
 
 	btnCancel := markup.Data("❌ Отмена", "admin_cancel_add_discount", "")
+	btnMenu := markup.Data("🏠 Главное меню", "back_to_menu", "")
 	rows = append(rows, markup.Row(btnCancel))
+	rows = append(rows, markup.Row(btnMenu))
 
 	markup.Inline(rows...)
 	return markup
@@ -162,12 +166,16 @@ func (b *Bot) handleAdminDiscountSelectService(ctx context.Context, c tele.Conte
 
 	markup := &tele.ReplyMarkup{}
 	btnCancel := markup.Data("❌ Отмена", "admin_cancel_add_discount", "")
-	markup.Inline(markup.Row(btnCancel))
+	btnMenu := markup.Data("🏠 Главное меню", "back_to_menu", "")
+	markup.Inline(
+		markup.Row(btnCancel),
+		markup.Row(btnMenu),
+	)
 
 	msg := fmt.Sprintf(
 		"✅ Услуга: <b>%s</b>\n\n"+
-			"Шаг 2/4: Введите название акции\n"+
-			"(например: \"Новогодняя распродажа\"):",
+			"Шаг 2/5: Введите название акции\n"+
+			"💡 Например: \"Новогодняя распродажа\", \"Скидка 20%%\", \"Летняя акция\"",
 		service.Name,
 	)
 
@@ -202,51 +210,65 @@ func (b *Bot) handleAdminAddDiscountMessage(c tele.Context) error {
 
 		return c.Send(
 			"✅ Название сохранено!\n\n"+
-				"Шаг 3/4: Введите процент скидки\n"+
-				"(например: 20 для скидки 20%):",
-			&tele.SendOptions{ReplyMarkup: markup},
+				"Шаг 3/5: Выберите процент скидки\n"+
+				"💡 Или введите свой процент (от 1 до 99):",
+			&tele.SendOptions{
+				ParseMode:   tele.ModeHTML,
+				ReplyMarkup: getDiscountPercentageKeyboard(),
+			},
 		)
 
 	case "add_discount_percentage":
 		percentage, err := strconv.Atoi(text)
 		if err != nil || percentage < 1 || percentage > 99 {
-			return c.Send("❌ Неверный формат. Введите число от 1 до 99")
+			return c.Send("❌ Неверный формат. Введите число от 1 до 99 или выберите из кнопок")
 		}
 		state.TempServiceData["percentage"] = percentage
 		state.EditMode = "add_discount_dates"
 
 		markup := &tele.ReplyMarkup{}
 		btnCancel := markup.Data("❌ Отмена", "admin_cancel_add_discount", "")
-		markup.Inline(markup.Row(btnCancel))
+		btnMenu := markup.Data("🏠 Главное меню", "back_to_menu", "")
+		markup.Inline(
+			markup.Row(btnCancel),
+			markup.Row(btnMenu),
+		)
 
 		return c.Send(
 			fmt.Sprintf("✅ Скидка: <b>%d%%</b>\n\n", percentage)+
-				"Шаг 4/4: Введите период акции\n"+
-				"Формат: ДД.ММ.ГГГГ-ДД.ММ.ГГГГ\n"+
-				"(например: 01.12.2024-31.12.2024):",
+				"Шаг 4/5: Выберите дату начала акции:",
 			&tele.SendOptions{
 				ParseMode:   tele.ModeHTML,
-				ReplyMarkup: markup,
+				ReplyMarkup: getDiscountStartDateKeyboard(),
 			},
 		)
 
-	case "add_discount_dates":
-		// Parse dates
-		parts := strings.Split(text, "-")
-		if len(parts) != 2 {
-			return c.Send("❌ Неверный формат. Используйте: ДД.ММ.ГГГГ-ДД.ММ.ГГГГ")
-		}
-
-		startDate, err := time.Parse("02.01.2006", strings.TrimSpace(parts[0]))
+	case "add_discount_start_date":
+		// Parse start date
+		startDate, err := time.Parse("02.01.2006", text)
 		if err != nil {
-			return c.Send("❌ Неверная дата начала. Используйте формат: ДД.ММ.ГГГГ")
+			return c.Send("❌ Неверный формат. Используйте: ДД.ММ.ГГГГ или выберите из кнопок")
 		}
+		state.TempServiceData["start_date"] = startDate
+		state.EditMode = "add_discount_end_date"
 
-		endDate, err := time.Parse("02.01.2006", strings.TrimSpace(parts[1]))
+		return c.Send(
+			fmt.Sprintf("✅ Дата начала: <b>%s</b>\n\n", startDate.Format("02.01.2006"))+
+				"Шаг 5/5: Выберите дату окончания акции:",
+			&tele.SendOptions{
+				ParseMode:   tele.ModeHTML,
+				ReplyMarkup: getDiscountEndDateKeyboard(startDate),
+			},
+		)
+
+	case "add_discount_end_date":
+		// Parse end date
+		endDate, err := time.Parse("02.01.2006", text)
 		if err != nil {
-			return c.Send("❌ Неверная дата окончания. Используйте формат: ДД.ММ.ГГГГ")
+			return c.Send("❌ Неверный формат. Используйте: ДД.ММ.ГГГГ или выберите из кнопок")
 		}
 
+		startDate := state.TempServiceData["start_date"].(time.Time)
 		// Set time to end of day for end date
 		endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 23, 59, 59, 0, endDate.Location())
 
@@ -265,6 +287,8 @@ func (b *Bot) handleAdminAddDiscountMessage(c tele.Context) error {
 			endDate,
 		)
 
+		serviceName := state.TempServiceData["service_name"].(string)
+
 		// Clear state
 		state.EditMode = ""
 		state.TempServiceData = nil
@@ -273,21 +297,32 @@ func (b *Bot) handleAdminAddDiscountMessage(c tele.Context) error {
 			return c.Send("❌ Ошибка создания акции: " + err.Error())
 		}
 
+		markup := &tele.ReplyMarkup{}
+		btnBack := markup.Data("⬅️ К акциям", "admin_discounts", "main")
+		btnMenu := markup.Data("🏠 Главное меню", "back_to_menu", "")
+		markup.Inline(
+			markup.Row(btnBack),
+			markup.Row(btnMenu),
+		)
+
 		msg := fmt.Sprintf(
 			"✅ <b>Акция создана!</b>\n\n"+
 				"🎉 <b>%s</b>\n"+
-				"Услуга: %s\n"+
-				"Скидка: <b>%d%%</b>\n"+
-				"Период: %s - %s\n\n"+
-				"Клиенты увидят сниженную цену автоматически!",
+				"📋 Услуга: %s\n"+
+				"💰 Скидка: <b>%d%%</b>\n"+
+				"📅 Период: %s - %s\n\n"+
+				"✨ Клиенты увидят сниженную цену автоматически!",
 			discount.Name,
-			state.TempServiceData["service_name"].(string),
+			serviceName,
 			discount.Percentage,
 			discount.StartDate.Format("02.01.2006"),
 			discount.EndDate.Format("02.01.2006"),
 		)
 
-		return c.Send(msg, &tele.SendOptions{ParseMode: tele.ModeHTML})
+		return c.Send(msg, &tele.SendOptions{
+			ParseMode:   tele.ModeHTML,
+			ReplyMarkup: markup,
+		})
 	}
 
 	return nil
@@ -329,11 +364,12 @@ func (b *Bot) handleAdminEditDiscount(ctx context.Context, c tele.Context, disco
 	btnToggle := markup.Data("🔄 Вкл/Выкл", "admin_toggle_discount", fmt.Sprintf("%d", discount.ID))
 	btnDelete := markup.Data("🗑 Удалить", "admin_delete_discount", fmt.Sprintf("%d", discount.ID))
 	btnBack := markup.Data("⬅️ Назад", "admin_discounts", "main")
+	btnMenu := markup.Data("🏠 Главное меню", "back_to_menu", "")
 
 	markup.Inline(
 		markup.Row(btnToggle),
 		markup.Row(btnDelete),
-		markup.Row(btnBack),
+		markup.Row(btnBack, btnMenu),
 	)
 
 	return c.Edit(msg, &tele.SendOptions{
@@ -379,6 +415,134 @@ func (b *Bot) handleAdminCancelAddDiscount(ctx context.Context, c tele.Context) 
 	state.EditMode = ""
 	state.TempServiceData = nil
 
-	return c.Edit("❌ Создание акции отменено")
+	markup := &tele.ReplyMarkup{}
+	btnBack := markup.Data("⬅️ К акциям", "admin_discounts", "main")
+	btnMenu := markup.Data("🏠 Главное меню", "back_to_menu", "")
+	markup.Inline(
+		markup.Row(btnBack),
+		markup.Row(btnMenu),
+	)
+
+	return c.Edit("❌ Создание акции отменено", &tele.SendOptions{ReplyMarkup: markup})
 }
 
+// handleAdminDiscountSetPercentage handles percentage selection from keyboard
+func (b *Bot) handleAdminDiscountSetPercentage(ctx context.Context, c tele.Context, percentageStr string) error {
+	percentage, err := strconv.Atoi(percentageStr)
+	if err != nil || percentage < 1 || percentage > 99 {
+		return c.Respond(&tele.CallbackResponse{Text: "❌ Неверный процент"})
+	}
+
+	state := b.getUserState(c.Sender().ID)
+	state.TempServiceData["percentage"] = percentage
+	state.EditMode = "add_discount_dates"
+
+	c.Respond(&tele.CallbackResponse{Text: fmt.Sprintf("✅ Скидка: %d%%", percentage)})
+
+	return c.Edit(
+		fmt.Sprintf("✅ Скидка: <b>%d%%</b>\n\n", percentage)+
+			"Шаг 4/5: Выберите дату начала акции:",
+		&tele.SendOptions{
+			ParseMode:   tele.ModeHTML,
+			ReplyMarkup: getDiscountStartDateKeyboard(),
+		},
+	)
+}
+
+// handleAdminDiscountSetStartDate handles start date selection from keyboard
+func (b *Bot) handleAdminDiscountSetStartDate(ctx context.Context, c tele.Context, dateStr string) error {
+	startDate, err := time.Parse("02.01.2006", dateStr)
+	if err != nil {
+		return c.Respond(&tele.CallbackResponse{Text: "❌ Неверная дата"})
+	}
+
+	state := b.getUserState(c.Sender().ID)
+	state.TempServiceData["start_date"] = startDate
+	state.EditMode = "add_discount_end_date"
+
+	c.Respond(&tele.CallbackResponse{Text: fmt.Sprintf("✅ Дата начала: %s", startDate.Format("02.01.2006"))})
+
+	return c.Edit(
+		fmt.Sprintf("✅ Дата начала: <b>%s</b>\n\n", startDate.Format("02.01.2006"))+
+			"Шаг 5/5: Выберите дату окончания акции:",
+		&tele.SendOptions{
+			ParseMode:   tele.ModeHTML,
+			ReplyMarkup: getDiscountEndDateKeyboard(startDate),
+		},
+	)
+}
+
+// handleAdminDiscountSetEndDate handles end date selection and creates discount
+func (b *Bot) handleAdminDiscountSetEndDate(ctx context.Context, c tele.Context, dateStr string) error {
+	endDate, err := time.Parse("02.01.2006", dateStr)
+	if err != nil {
+		return c.Respond(&tele.CallbackResponse{Text: "❌ Неверная дата"})
+	}
+
+	state := b.getUserState(c.Sender().ID)
+	startDate := state.TempServiceData["start_date"].(time.Time)
+
+	// Set time to end of day for end date
+	endDate = time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 23, 59, 59, 0, endDate.Location())
+
+	if endDate.Before(startDate) {
+		return c.Respond(&tele.CallbackResponse{Text: "❌ Дата окончания не может быть раньше даты начала"})
+	}
+
+	// Create discount
+	discountService := services.NewDiscountService()
+	discount, err := discountService.CreateDiscount(
+		ctx,
+		state.TempServiceData["service_id"].(uint),
+		state.TempServiceData["name"].(string),
+		state.TempServiceData["percentage"].(int),
+		startDate,
+		endDate,
+	)
+
+	serviceName := state.TempServiceData["service_name"].(string)
+
+	// Clear state
+	state.EditMode = ""
+	state.TempServiceData = nil
+
+	if err != nil {
+		c.Respond(&tele.CallbackResponse{Text: "❌ Ошибка создания акции"})
+		return c.Edit("❌ Ошибка создания акции: " + err.Error())
+	}
+
+	c.Respond(&tele.CallbackResponse{Text: "✅ Акция создана!"})
+
+	// Send promotion to channel if configured
+	if err := b.notificationService.SendPromotionToChannel(ctx, discount); err != nil {
+		log.Printf("Error sending promotion to channel: %v", err)
+		// Don't fail the whole operation if channel send fails
+	}
+
+	markup := &tele.ReplyMarkup{}
+	btnBack := markup.Data("⬅️ К акциям", "admin_discounts", "main")
+	btnMenu := markup.Data("🏠 Главное меню", "back_to_menu", "")
+	markup.Inline(
+		markup.Row(btnBack),
+		markup.Row(btnMenu),
+	)
+
+	msg := fmt.Sprintf(
+		"✅ <b>Акция создана!</b>\n\n"+
+			"🎉 <b>%s</b>\n"+
+			"📋 Услуга: %s\n"+
+			"💰 Скидка: <b>%d%%</b>\n"+
+			"📅 Период: %s - %s\n\n"+
+			"✨ Клиенты увидят сниженную цену автоматически!",
+		discount.Name,
+		serviceName,
+		discount.Percentage,
+		discount.StartDate.Format("02.01.2006"),
+		discount.EndDate.Format("02.01.2006"),
+	)
+
+	return c.Edit(msg, &tele.SendOptions{
+		ParseMode:   tele.ModeHTML,
+		ReplyMarkup: markup,
+	})
+}

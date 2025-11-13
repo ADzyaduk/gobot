@@ -20,12 +20,6 @@ func (b *Bot) handleStart(c tele.Context) error {
 		return c.Send("Произошла ошибка при регистрации. Попробуйте позже.")
 	}
 
-	// Remove old reply keyboard
-	removeKeyboard := &tele.ReplyMarkup{
-		RemoveKeyboard: true,
-	}
-	c.Send("Загрузка...", removeKeyboard)
-
 	welcomeMsg := fmt.Sprintf(
 		"👋 Привет, %s!\n\n"+
 			"Добро пожаловать в систему записи на услуги массажа и депиляции.\n\n"+
@@ -42,10 +36,12 @@ func (b *Bot) handleStart(c tele.Context) error {
 // handleHelp handles the /help command
 func (b *Bot) handleHelp(c tele.Context) error {
 	helpMsg := "📋 <b>Справка:</b>\n\n" +
-		"<b>📝 Записаться</b>\n" +
-		"Выберите услугу, дату и время для записи\n\n" +
+		"<b>📋 Каталог услуг</b>\n" +
+		"Просмотр всех услуг с описаниями и запись\n\n" +
 		"<b>📅 Мои записи</b>\n" +
-		"Просмотр всех ваших записей\n\n"
+		"Просмотр всех ваших записей\n\n" +
+		"<b>🎉 Акции</b>\n" +
+		"Просмотр текущих акций и скидок\n\n"
 
 	if b.isAdmin(c.Sender().ID) {
 		helpMsg += "<b>🔧 Админ-панель</b>\n" +
@@ -64,38 +60,10 @@ func (b *Bot) handleHelp(c tele.Context) error {
 	})
 }
 
-// handleBook handles the /book command
+// handleBook handles the /book command - redirects to catalog
 func (b *Bot) handleBook(c tele.Context) error {
-	fmt.Printf("📖 handleBook called for user %d\n", c.Sender().ID)
-	ctx := context.Background()
-
-	// Get available services
-	fmt.Println("🔍 Getting available services...")
-	services, err := b.bookingService.GetAvailableServices(ctx)
-	if err != nil {
-		fmt.Printf("❌ Error getting services: %v\n", err)
-		return c.Send("Ошибка при загрузке услуг. Попробуйте позже.")
-	}
-
-	fmt.Printf("✅ Found %d services\n", len(services))
-	if len(services) == 0 {
-		return c.Send("К сожалению, сейчас нет доступных услуг.")
-	}
-
-	// Clear previous state
-	b.clearUserState(c.Sender().ID)
-
-	fmt.Println("📤 Sending services keyboard...")
-	err = c.Send(
-		"📋 Выберите услугу:",
-		getServicesKeyboard(services),
-	)
-	if err != nil {
-		fmt.Printf("❌ Error sending services: %v\n", err)
-	} else {
-		fmt.Println("✅ Services sent successfully")
-	}
-	return err
+	// Redirect to catalog
+	return b.handleCatalog(c)
 }
 
 // handleMyBookings handles the /my_bookings command
@@ -108,7 +76,7 @@ func (b *Bot) handleMyBookings(c tele.Context) error {
 	}
 
 	if len(bookings) == 0 {
-		return c.Send("У вас пока нет записей.\nИспользуйте /book для создания записи.")
+		return c.Send("У вас пока нет записей.\nИспользуйте каталог услуг для создания записи.")
 	}
 
 	msg := "📅 <b>Ваши записи:</b>\n\n"
@@ -132,7 +100,9 @@ func (b *Bot) handleMyBookings(c tele.Context) error {
 		)
 	}
 
-	return c.Send(msg, &tele.SendOptions{ParseMode: tele.ModeHTML})
+	return c.Send(msg, &tele.SendOptions{
+		ParseMode: tele.ModeHTML,
+	})
 }
 
 // handleCancelStart handles the /cancel command

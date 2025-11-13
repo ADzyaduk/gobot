@@ -17,6 +17,7 @@ type Config struct {
 	DBPath       string
 	Timezone     string
 	Debug        bool
+	ChannelID    string // Optional: Telegram channel ID for promotions (format: @channelname or -1001234567890)
 }
 
 // Load reads configuration from environment variables
@@ -26,10 +27,11 @@ func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		BotToken: os.Getenv("BOT_TOKEN"),
-		DBPath:   os.Getenv("DB_PATH"),
-		Timezone: os.Getenv("TIMEZONE"),
-		Debug:    os.Getenv("BOT_DEBUG") == "true",
+		BotToken:  os.Getenv("BOT_TOKEN"),
+		DBPath:    os.Getenv("DB_PATH"),
+		Timezone:  os.Getenv("TIMEZONE"),
+		Debug:     os.Getenv("BOT_DEBUG") == "true",
+		ChannelID: os.Getenv("CHANNEL_ID"), // Optional channel for promotions
 	}
 
 	// Validate required fields
@@ -71,4 +73,3 @@ func (c *Config) IsAdmin(userID int64) bool {
 	}
 	return false
 }
-

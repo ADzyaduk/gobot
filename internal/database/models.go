@@ -24,15 +24,16 @@ type User struct {
 
 // Service represents a service type (massage or depilation)
 type Service struct {
-	ID          uint   `gorm:"primaryKey"`
-	Name        string `gorm:"not null;index"`
-	Duration    int    `gorm:"not null"` // Duration in minutes
-	Price       int    `gorm:"not null"` // Price in cents or smallest currency unit
-	Description string
-	IsActive    bool `gorm:"default:true;index"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   gorm.DeletedAt `gorm:"index"`
+	ID                  uint   `gorm:"primaryKey"`
+	Name                string `gorm:"not null;index"`
+	Duration            int    `gorm:"not null"` // Duration in minutes
+	Price               int    `gorm:"not null"` // Price in cents or smallest currency unit
+	Description         string // Short description
+	DetailedDescription string `gorm:"type:text"` // Detailed description for users
+	IsActive            bool   `gorm:"default:true;index"`
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	DeletedAt           gorm.DeletedAt `gorm:"index"`
 
 	// Relations
 	Bookings []Booking `gorm:"foreignKey:ServiceID"`
@@ -50,16 +51,19 @@ const (
 
 // Booking represents a service booking
 type Booking struct {
-	ID        uint          `gorm:"primaryKey"`
-	UserID    int64         `gorm:"not null;index"`
-	ServiceID uint          `gorm:"not null;index"`
-	Date      time.Time     `gorm:"not null;index"`
-	Time      string        `gorm:"not null"` // Format: "HH:MM"
-	Status    BookingStatus `gorm:"not null;index;default:'pending'"`
-	Notes     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
+	ID                    uint          `gorm:"primaryKey"`
+	UserID                int64         `gorm:"not null;index"`
+	ServiceID             uint          `gorm:"not null;index"`
+	Date                  time.Time     `gorm:"not null;index"`
+	Time                  string        `gorm:"not null"` // Format: "HH:MM"
+	Status                BookingStatus `gorm:"not null;index;default:'pending'"`
+	Notes                 string
+	ReminderSent          bool      `gorm:"default:false"` // Reminder sent 1 day before
+	HourReminderSent      bool      `gorm:"default:false"` // Reminder sent 1 hour before
+	AdminDailyReminderSent bool     `gorm:"default:false"` // Admin daily reminder sent
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	DeletedAt             gorm.DeletedAt `gorm:"index"`
 
 	// Relations
 	User    User    `gorm:"foreignKey:UserID"`

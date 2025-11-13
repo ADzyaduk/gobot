@@ -57,7 +57,7 @@ func New(cfg *config.Config) (*Bot, error) {
 		bookingService:      services.NewBookingService(),
 		userService:         services.NewUserService(),
 		adminService:        services.NewAdminService(),
-		notificationService: services.NewNotificationService(tg),
+		notificationService: services.NewNotificationService(tg, cfg.AdminUserIDs, cfg.ChannelID),
 		userStates:          make(map[int64]*UserState),
 	}
 

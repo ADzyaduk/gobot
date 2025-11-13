@@ -35,15 +35,18 @@ func (b *Bot) handleAdminEditServiceMenu(ctx context.Context, c tele.Context, se
 			"<b>%s</b>\n\n"+
 			"💰 Цена: <b>%d руб.</b>\n"+
 			"⏱ Длительность: <b>%d мин</b>\n"+
-			"📝 Описание: %s\n"+
-			"Статус: %s\n\n"+
-			"Выберите что хотите изменить:",
+			"📝 Описание: %s\n",
 		service.Name,
 		service.Price/100,
 		service.Duration,
 		service.Description,
-		status,
 	)
+
+	if service.DetailedDescription != "" {
+		msg += fmt.Sprintf("📖 Подробное описание: %s\n", service.DetailedDescription)
+	}
+
+	msg += fmt.Sprintf("Статус: %s\n\nВыберите что хотите изменить:", status)
 
 	return c.Edit(msg, &tele.SendOptions{
 		ParseMode:   tele.ModeHTML,
@@ -59,6 +62,7 @@ func getServiceEditMenuKeyboard(serviceID uint) *tele.ReplyMarkup {
 	btnPrice := markup.Data("💰 Изменить цену", "admin_edit_field", fmt.Sprintf("price:%d", serviceID))
 	btnDuration := markup.Data("⏱ Изменить длительность", "admin_edit_field", fmt.Sprintf("duration:%d", serviceID))
 	btnDesc := markup.Data("📝 Изменить описание", "admin_edit_field", fmt.Sprintf("description:%d", serviceID))
+	btnDetailedDesc := markup.Data("📖 Изменить подробное описание", "admin_edit_field", fmt.Sprintf("detailed_description:%d", serviceID))
 	btnToggle := markup.Data("🔄 Вкл/Выкл", "admin_toggle_service", fmt.Sprintf("%d", serviceID))
 	btnDelete := markup.Data("🗑 Удалить", "admin_delete_service", fmt.Sprintf("%d", serviceID))
 	btnBack := markup.Data("⬅️ Назад", "admin", "services")
@@ -67,6 +71,7 @@ func getServiceEditMenuKeyboard(serviceID uint) *tele.ReplyMarkup {
 		markup.Row(btnName),
 		markup.Row(btnPrice, btnDuration),
 		markup.Row(btnDesc),
+		markup.Row(btnDetailedDesc),
 		markup.Row(btnToggle, btnDelete),
 		markup.Row(btnBack),
 	)
@@ -123,6 +128,17 @@ func (b *Bot) handleAdminEditField(ctx context.Context, c tele.Context, data str
 				"Текущее: %s\n\n"+
 				"Отправьте новое описание:",
 			service.Description,
+		)
+	case "detailed_description":
+		currentDesc := service.DetailedDescription
+		if currentDesc == "" {
+			currentDesc = "(не задано)"
+		}
+		msg = fmt.Sprintf(
+			"📖 <b>Изменение подробного описания</b>\n\n"+
+				"Текущее: %s\n\n"+
+				"Отправьте новое подробное описание (может быть многострочным):",
+			currentDesc,
 		)
 	default:
 		return c.Respond(&tele.CallbackResponse{Text: "Неизвестное поле"})
@@ -182,6 +198,8 @@ func (b *Bot) handleAdminTextMessage(c tele.Context) error {
 		err = b.adminService.UpdateServiceField(ctx, serviceID, "duration", duration)
 	case "description":
 		err = b.adminService.UpdateServiceField(ctx, serviceID, "description", text)
+	case "detailed_description":
+		err = b.adminService.UpdateServiceField(ctx, serviceID, "detailed_description", text)
 	default:
 		return c.Send("❌ Ошибка редактирования")
 	}
@@ -204,6 +222,10 @@ func (b *Bot) handleAdminTextMessage(c tele.Context) error {
 		service.Duration,
 		service.Description,
 	)
+
+	if service.DetailedDescription != "" {
+		msg += fmt.Sprintf("\n\n📖 <b>Подробное описание:</b>\n%s", service.DetailedDescription)
+	}
 
 	return c.Send(msg, &tele.SendOptions{
 		ParseMode:   tele.ModeHTML,
